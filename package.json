@@ -8,6 +8,7 @@
     "prebuild": "npm run build:data",
     "build": "next build",
     "start": "next start",
+    "test": "node --import tsx --test lib/**/*.test.ts",
     "lint": "eslint"
   },
   "dependencies": {
