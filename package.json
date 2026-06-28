@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "build:data": "tsx scripts/build-data.ts",
+    "prebuild": "npm run build:data",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -31,6 +33,7 @@
     "eslint-config-next": "16.2.9",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

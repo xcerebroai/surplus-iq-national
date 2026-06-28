@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Prisma generated client (regenerated via `prisma generate`)
 /lib/generated/prisma
+
+# Generated data artifact (rebuilt by `npm run build:data` / prebuild)
+/public/data/leads.json
