@@ -1,0 +1,288 @@
+// Surplus IQ — national Surplus Funds Lead data model.
+// See SPEC.md for product requirements. This file is the single source of
+// truth for the database; the hand-written mirror lives in /types.
+//
+// Core principle: accuracy over volume. No source, no lead. No proof, no
+// confirmed surplus. Anything the system cannot verify is marked estimated,
+// possible, or needs_review.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// Category of surplus lead. Maps to SPEC "Lead types".
+enum LeadType {
+  mortgage_foreclosure_surplus
+  tax_deed_surplus
+  tax_sale_excess_proceeds
+  sheriff_sale_excess_proceeds
+  clerk_registry_funds
+  unclaimed_foreclosure_funds
+}
+
+/// Underlying sale mechanism that produced the surplus.
+/// NOTE: SPEC requires sale_type to be an enum but never enumerates its
+/// allowed values. This set is inferred from the product scope (mortgage
+/// foreclosure vs. tax foreclosure / tax deed / tax sale / sheriff sale).
+/// See the report for this assumption.
+enum SaleType {
+  mortgage_foreclosure
+  tax_deed
+  tax_sale
+  tax_foreclosure
+  sheriff_sale
+  other
+}
+
+/// Lifecycle / quality state of the surplus figure (9 values, per SPEC).
+enum SurplusStatus {
+  confirmed_public_list
+  estimated_from_sale_data
+  possible_pending_docket
+  possible_pending_county_review
+  claim_filed
+  disbursed
+  expired
+  invalid
+  unknown
+}
+
+/// How trustworthy the lead is (6 values, per SPEC).
+enum VerificationStatus {
+  verified
+  estimated
+  needs_review
+  rejected
+  stale
+  source_error
+}
+
+/// Evidence strength, levels 1-5 (per SPEC). Prisma enum members cannot be
+/// numeric literals, so values are named level_1..level_5. Only level_4 and
+/// level_5 may ever be marked verified.
+///   level_1 = Raw scrape only
+///   level_2 = Sale data found
+///   level_3 = Surplus estimated from public sale data
+///   level_4 = County surplus/excess list confirms funds
+///   level_5 = County source confirms funds AND owner/entity information
+enum EvidenceLevel {
+  level_1
+  level_2
+  level_3
+  level_4
+  level_5
+}
+
+/// Classification of the owner/claimant.
+enum OwnerType {
+  individual
+  business
+  trust
+  estate
+  unknown
+}
+
+/// File/transport format a source publishes data in (SourceRegistry).
+enum DataFormat {
+  html
+  pdf
+  csv
+  xlsx
+  json
+  manual
+}
+
+/// How difficult a source is to ingest (SourceRegistry).
+enum AccessLevel {
+  easy
+  moderate
+  hard
+  blocked
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+/// A single surplus-funds lead. Money columns are Decimal(14,2) to avoid
+/// floating-point rounding on dollar amounts.
+model Lead {
+  id String @id @default(cuid())
+
+  // Classification
+  lead_type           LeadType
+  sale_type           SaleType
+  surplus_status      SurplusStatus      @default(unknown)
+  verification_status VerificationStatus @default(needs_review)
+  evidence_level      EvidenceLevel      @default(level_1)
+
+  // Owner / entity. owner_raw_name is the untouched source value and must
+  // never be discarded (SPEC: "Never delete original source owner name").
+  business_name  String?
+  first_name     String?
+  last_name      String?
+  owner_raw_name String?
+  owner_type     OwnerType @default(unknown)
+
+  // Property location
+  property_address String?
+  property_city    String?
+  property_state   String? // 2-letter USPS code of the property
+  property_zip     String?
+
+  // Jurisdiction. `state` is the source/filing jurisdiction; `property_state`
+  // is the property location. SPEC lists both separately — see the report.
+  county String?
+  state  String?
+
+  // Identifiers
+  parcel_number String?
+  case_number   String?
+  court_name    String?
+
+  // Sale / financials
+  sale_date                DateTime?
+  sale_price               Decimal?  @db.Decimal(14, 2)
+  opening_bid              Decimal?  @db.Decimal(14, 2)
+  judgment_amount          Decimal?  @db.Decimal(14, 2)
+  amount_owed              Decimal?  @db.Decimal(14, 2)
+  estimated_surplus_amount Decimal?  @db.Decimal(14, 2)
+  verified_surplus_amount  Decimal?  @db.Decimal(14, 2)
+
+  // Provenance
+  source_name         String?
+  source_type         String? // free-form tier/source category (SPEC gives no fixed set)
+  source_url          String?
+  source_document_url String?
+  source_file_name    String?
+  source_last_updated DateTime?
+  last_checked_at     DateTime?
+
+  // Bookkeeping
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Review workflow
+  review_status    String? // free-form workflow state; SPEC gives no fixed set
+  notes            String?  @db.Text
+  tags             String[] // Postgres text[]
+  confidence_score Float? // 0.0-1.0 model/heuristic confidence (see report)
+  reject_reason    String?
+
+  // Relations
+  evidence Evidence[]
+
+  @@index([state])
+  @@index([property_state])
+  @@index([county])
+  @@index([lead_type])
+  @@index([sale_type])
+  @@index([surplus_status])
+  @@index([verification_status])
+  @@index([source_name])
+  @@map("leads")
+}
+
+/// Catalog of public data sources (county lists, clerk registries, auction
+/// pages, etc.) and their ingestion characteristics.
+model SourceRegistry {
+  id String @id @default(cuid())
+
+  source_name String
+  source_type String? // free-form tier/category label (SPEC gives no fixed set)
+  state       String?
+  county      String?
+  city        String?
+  source_url  String?
+
+  data_format DataFormat @default(manual)
+
+  // Which lead/sale types this source can supply. Modeled as enum arrays so a
+  // single source can support several types (see report).
+  sale_type_supported SaleType[]
+  lead_type_supported LeadType[]
+
+  access_level     AccessLevel @default(moderate)
+  requires_login   Boolean     @default(false)
+  requires_captcha Boolean     @default(false)
+  // Conservative default: do not assume scraping is permitted (SPEC: do not
+  // scrape behind login/CAPTCHA; public records only).
+  scrape_allowed   Boolean     @default(false)
+
+  update_frequency       String? // e.g. "weekly", "monthly", "manual"
+  parser_status          String? // e.g. "none", "draft", "active", "broken"
+  last_successful_import DateTime?
+  notes                  String?   @db.Text
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  imports ImportJob[]
+
+  @@index([state])
+  @@index([county])
+  @@index([access_level])
+  @@map("source_registry")
+}
+
+/// A piece of supporting evidence attached to a Lead (scraped row, PDF, list
+/// entry, docket page, etc.). Backs the verification/audit trail.
+model Evidence {
+  id String @id @default(cuid())
+
+  lead_id String
+  lead    Lead   @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+
+  evidence_type    String?
+  source_name      String?
+  source_url       String?
+  document_url     String?
+  raw_text         String?   @db.Text
+  extracted_amount Decimal?  @db.Decimal(14, 2)
+  extracted_date   DateTime?
+  confidence_score Float?
+
+  created_at DateTime @default(now())
+
+  @@index([lead_id])
+  @@map("evidence")
+}
+
+/// A run of an ingestion job against a source (CSV upload, connector run, etc.).
+model ImportJob {
+  id String @id @default(cuid())
+
+  // Optional: manual/CSV imports may not be tied to a registered source.
+  // On source deletion the job is retained with a null source_id.
+  source_id String?
+  source    SourceRegistry? @relation(fields: [source_id], references: [id], onDelete: SetNull)
+
+  job_status String @default("pending") // free-form lifecycle; SPEC gives no fixed set
+
+  started_at  DateTime?
+  finished_at DateTime?
+
+  records_found    Int @default(0)
+  records_imported Int @default(0)
+  records_updated  Int @default(0)
+  records_rejected Int @default(0)
+
+  error_message String? @db.Text
+  raw_file_path String?
+
+  created_at DateTime @default(now())
+
+  @@index([source_id])
+  @@index([job_status])
+  @@map("import_jobs")
+}
