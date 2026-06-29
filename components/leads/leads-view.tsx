@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Leads section: filters + result count + CSV export + table + detail drawer.
- * All client-side state over the loaded leads.json. Read-only.
+ * Leads section: KPI cards + filters + active chips + result count + CSV export
+ * + table + detail drawer. All client-side state over the loaded leads.json.
+ * Read-only.
  */
 
 import { useMemo, useState } from "react";
@@ -18,7 +19,9 @@ import {
   type LeadFilters,
 } from "@/lib/leads/filtering";
 import { leadsToCsv, downloadCsv } from "@/lib/leads/csv";
+import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { FiltersBar } from "@/components/leads/filters-bar";
+import { FilterChips } from "@/components/leads/filter-chips";
 import { LeadTable } from "@/components/leads/lead-table";
 import { LeadDetailDrawer } from "@/components/leads/lead-detail-drawer";
 
@@ -34,24 +37,33 @@ export function LeadsView({ leads }: { leads: JsonLead[] }) {
   function patch(p: Partial<LeadFilters>) {
     setFilters((f) => ({ ...f, ...p }));
   }
+  function clearAll() {
+    setFilters(DEFAULT_FILTERS);
+  }
 
   function exportCsv() {
     if (filtered.length === 0) return;
     downloadCsv(leadsToCsv(filtered), `surplus-iq-leads-${filtered.length}.csv`);
+    // eslint-disable-next-line no-console
+    console.log(`[surplus-iq] exported ${filtered.length} filtered lead(s) to CSV`);
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <KpiCards leads={filtered} totalCount={leads.length} />
+
       <FiltersBar
         filters={filters}
         onChange={patch}
-        onClear={() => setFilters(DEFAULT_FILTERS)}
+        onClear={clearAll}
         states={states}
         counties={counties}
         activeCount={activeCount}
       />
 
-      <div className="flex items-center justify-between">
+      <FilterChips filters={filters} onChange={patch} onClear={clearAll} />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-500" data-testid="lead-count">
           Showing <span className="font-semibold text-slate-700">{filtered.length}</span> of{" "}
           <span className="font-semibold text-slate-700">{leads.length}</span> leads
@@ -61,7 +73,7 @@ export function LeadsView({ leads }: { leads: JsonLead[] }) {
           onClick={exportCsv}
           disabled={filtered.length === 0}
           data-testid="export-csv"
-          className="inline-flex h-9 items-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Download className="h-4 w-4" />
           Export CSV

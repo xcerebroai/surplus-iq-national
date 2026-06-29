@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * Top-level dashboard shell: dark navy sidebar + light content area with a
- * header. Fetches the static leads.json once (base-path aware) and switches
+ * Top-level dashboard shell: dark navy sidebar + light content area with a real
+ * app header. Fetches the static leads.json once (base-path aware) and switches
  * sections client-side. Only "Leads" is fully functional; other sections are
- * placeholders / informational. Read-only — no backend.
+ * intentional content/placeholder views. Read-only — no backend.
  */
 
 import { useEffect, useState } from "react";
@@ -13,8 +13,10 @@ import type { JsonLead, LeadsDataset } from "@/types/json";
 import { assetPath } from "@/lib/utils/asset-path";
 import { NAV_ITEMS, DEFAULT_SECTION, type SectionId } from "@/components/dashboard/nav";
 import { Sidebar } from "@/components/dashboard/sidebar";
-import { SectionPlaceholder } from "@/components/dashboard/section-placeholder";
 import { KnownGapsView } from "@/components/dashboard/known-gaps-view";
+import { ValidationRulesView } from "@/components/dashboard/validation-rules-view";
+import { ImportCenterView } from "@/components/dashboard/import-center-view";
+import { SettingsView } from "@/components/dashboard/settings-view";
 import { SourceRegistryView } from "@/components/sources/source-registry-view";
 import { LeadsView } from "@/components/leads/leads-view";
 
@@ -64,29 +66,13 @@ export function DashboardShell() {
       case "sources":
         return <SourceRegistryView />;
       case "imports":
-        return (
-          <SectionPlaceholder
-            title="Import Center"
-            description="CSV import, manual PDF/Excel upload, source connectors, and import history will live here. The build-time pipeline (scripts/build-data.ts) is the current ingestion seam."
-          />
-        );
+        return <ImportCenterView />;
       case "validation":
-        return (
-          <SectionPlaceholder
-            title="Validation Rules"
-            description="The surplus calculation and verification rules — county-list confirmation, sale_price minus debt, Ohio/Florida specifics, and the Level 4/5 verification gate — will be viewable here."
-            note="Coming soon"
-          />
-        );
+        return <ValidationRulesView />;
       case "known-gaps":
         return <KnownGapsView />;
       case "settings":
-        return (
-          <SectionPlaceholder
-            title="Settings"
-            description="Dashboard configuration options will appear here."
-          />
-        );
+        return <SettingsView />;
     }
   }
 
@@ -95,19 +81,20 @@ export function DashboardShell() {
       <Sidebar active={active} onSelect={setActive} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Header */}
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
+        {/* App header */}
+        <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 shadow-sm">
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold text-slate-900">{nav.title}</h1>
+            <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900">{nav.title}</h1>
             <p className="truncate text-xs text-slate-500">{nav.subtitle}</p>
           </div>
-          <span className="hidden shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 sm:inline">
-            Static · read-only
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Static · Read-only MVP
           </span>
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto p-6">{renderSection()}</main>
+        <main className="flex-1 overflow-y-auto bg-slate-50 p-6">{renderSection()}</main>
       </div>
     </div>
   );

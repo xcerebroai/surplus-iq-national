@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Right-side, VIEW-ONLY lead detail drawer. No editing, no save. Opens when a
- * row is clicked; closes on overlay click, the X button, or Escape.
+ * Right-side, VIEW-ONLY lead detail drawer. No editing, no save. Opens on row
+ * click; closes on overlay click, the X button, or Escape. Leads with a large
+ * surplus number + status badges up top, then organized read-only sections.
  */
 
 import { useEffect } from "react";
@@ -17,6 +18,7 @@ import {
   isHighValue,
   EM_DASH,
 } from "@/lib/utils/format";
+import { leadDisplayName, effectiveSurplus } from "@/lib/leads/stats";
 import {
   LEAD_TYPE_LABELS,
   SALE_TYPE_LABELS,
@@ -30,7 +32,7 @@ import {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 py-1.5">
+    <div className="grid grid-cols-[136px_1fr] gap-2 py-1.5">
       <dt className="text-xs font-medium text-slate-500">{label}</dt>
       <dd className="text-sm text-slate-800">{children}</dd>
     </div>
@@ -39,10 +41,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-slate-100 px-5 py-4 first:border-t-0">
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-        {title}
-      </h3>
+    <section className="border-t border-slate-100 px-5 py-4">
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
       <dl>{children}</dl>
     </section>
   );
@@ -51,13 +51,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Money({ value, emphasize = false }: { value: number | null; emphasize?: boolean }) {
   if (value == null) return <span className="text-slate-400">{EM_DASH}</span>;
   return (
-    <span
-      className={
-        emphasize && isHighValue(value)
-          ? "font-semibold text-emerald-700"
-          : "text-slate-800"
-      }
-    >
+    <span className={emphasize && isHighValue(value) ? "font-semibold text-emerald-700" : "text-slate-800"}>
       {formatCurrency(value)}
     </span>
   );
@@ -66,12 +60,7 @@ function Money({ value, emphasize = false }: { value: number | null; emphasize?:
 function ExternalLink({ url }: { url: string | null }) {
   if (!url) return <span className="text-slate-400">{EM_DASH}</span>;
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="break-all text-blue-600 hover:underline"
-    >
+    <a href={url} target="_blank" rel="noopener noreferrer" className="break-all text-blue-600 hover:underline">
       {url}
     </a>
   );
@@ -95,36 +84,58 @@ export function LeadDetailDrawer({
 
   if (!lead) return null;
 
-  const displayName =
-    lead.business_name ||
-    [lead.first_name, lead.last_name].filter(Boolean).join(" ") ||
-    lead.owner_raw_name ||
-    "Lead detail";
+  const surplus = effectiveSurplus(lead);
 
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Lead detail">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={onClose} />
       <div className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">{displayName}</h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {LEAD_TYPE_LABELS[lead.lead_type]} · {lead.id}
+        {/* Header with big surplus + badges */}
+        <div className="border-b border-slate-200 bg-gradient-to-br from-slate-900 to-slate-800 px-5 py-5 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wide text-blue-300/80">
+                {LEAD_TYPE_LABELS[lead.lead_type]}
+              </p>
+              <h2 className="mt-0.5 truncate text-lg font-semibold" title={leadDisplayName(lead)}>
+                {leadDisplayName(lead)}
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-md p-1 text-slate-300 hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">
+              {lead.verified_surplus_amount != null ? "Verified surplus" : "Estimated surplus"}
+            </p>
+            <p className="text-3xl font-bold tabular-nums text-emerald-300">
+              {surplus != null ? formatCurrency(surplus) : EM_DASH}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
-          >
-            <X className="h-5 w-5" />
-          </button>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <SurplusStatusBadge status={lead.surplus_status} />
+            <VerificationStatusBadge status={lead.verification_status} />
+            <EvidenceLevelBadge level={lead.evidence_level} long />
+          </div>
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
+          {lead.reject_reason && (
+            <div className="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              <span className="font-semibold">Reject reason: </span>
+              {lead.reject_reason}
+            </div>
+          )}
+
           <Section title="Owner / Entity">
             <Field label="Raw name">{formatText(lead.owner_raw_name)}</Field>
             <Field label="Business / Entity">{formatText(lead.business_name)}</Field>
@@ -178,7 +189,6 @@ export function LeadDetailDrawer({
           </Section>
 
           <Section title="Warnings / Notes">
-            <Field label="Reject reason">{formatText(lead.reject_reason)}</Field>
             <Field label="Notes">{formatText(lead.notes)}</Field>
             <Field label="Tags">
               {lead.tags.length > 0 ? lead.tags.join(", ") : <span className="text-slate-400">{EM_DASH}</span>}
