@@ -1,0 +1,22 @@
+{
+  "source_name": "Mecklenburg County Foreclosure Sale Results",
+  "source_state": "NC",
+  "source_county": "Mecklenburg",
+  "source_type": "auction_results",
+  "source_url": "https://example.gov/mecklenburg/foreclosure-sales",
+  "lead_type": "mortgage_foreclosure_surplus",
+  "sale_type": "mortgage_foreclosure",
+  "id_prefix": "nc-meck-mf",
+  "columns": {
+    "case_number": "Case No",
+    "last_name": "Last Name",
+    "first_name": "First Name",
+    "property_address": "Situs Address",
+    "property_city": "City",
+    "property_zip": "ZIP",
+    "sale_date": "Sale Date",
+    "sale_price": "Sale Price",
+    "judgment_amount": "Judgment Amount",
+    "opening_bid": "Opening Bid"
+  }
+}

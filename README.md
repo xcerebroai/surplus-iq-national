@@ -49,7 +49,10 @@ static export. Prisma schema retained for reference only.
 app/                     Next.js App Router (static dashboard shell)
 components/leads/         Lead table (client component)
 data/sample/             Seed lead JSON (test data; input to the build script)
+data/sources/            Drop folder: public lists (CSV/XLSX) + <name>.map.json
 lib/surplus/             calculate-surplus + owner-parser helpers (+ tests)
+lib/leads/process-lead   Shared owner+surplus processing (seed and imports)
+lib/imports/             CSV/XLSX readers + generic public-list ingester
 lib/utils/               base-path-aware asset helper
 scripts/build-data.ts    Build-time pipeline -> public/data/leads.json
 types/                   Canonical enums/models + JSON-serialized shapes
@@ -74,6 +77,69 @@ npm run dev
 # Production static export -> ./out
 npm run build             # prebuild (build:data) then next build
 ```
+
+## How to add a public list
+
+Surplus IQ ingests public surplus / excess-funds lists at **build time** — no
+backend, no runtime upload. To add a real county/clerk list:
+
+1. **Drop the raw file** in `data/sources/`. CSV and Excel (`.xlsx`) are
+   supported, e.g. `data/sources/harris-tx-excess.csv`.
+
+2. **Create a mapping** next to it named `<same-base-name>.map.json`
+   (e.g. `data/sources/harris-tx-excess.map.json`). It tells the ingester which
+   source columns map to which Lead fields. Only mapped columns are used;
+   everything else is ignored.
+
+   ```jsonc
+   {
+     "source_name": "Harris County Tax Deed Excess Proceeds",
+     "source_state": "TX",          // fallback state when no per-row column
+     "source_county": "Harris",     // fallback county
+     "source_type": "county_surplus_list", // marks an official list
+     "source_url": "https://example.gov/harris/excess",
+     "lead_type": "tax_sale_excess_proceeds", // must be a valid LeadType
+     "sale_type": "tax_foreclosure",          // must be a valid SaleType
+     "id_prefix": "tx-harris-excess",         // unique; ids become <prefix>-0001
+     "columns": {
+       "owner_raw_name": "Owner Name",
+       "property_address": "Property Address",
+       "property_city": "City",
+       "property_zip": "Zip",
+       "case_number": "Cause Number",
+       "sale_date": "Sale Date",
+       "sale_price": "Sale Amount",
+       "amount_owed": "Taxes Due",
+       "verified_surplus_amount": "Excess Funds"
+     }
+   }
+   ```
+
+   Mappable Lead fields: `owner_raw_name` (or `business_name` / `first_name` /
+   `last_name`), `property_address`, `property_city`, `property_state`,
+   `property_zip`, `county`, `state`, `parcel_number`, `case_number`,
+   `court_name`, `sale_date`, `sale_price`, `opening_bid`, `judgment_amount`,
+   `amount_owed`, `estimated_surplus_amount`, `verified_surplus_amount`,
+   `source_url`, `source_document_url`, `last_checked_at`.
+
+3. **Run the build:**
+
+   ```bash
+   npm run build:data   # ingest into public/data/leads.json (quick)
+   # or
+   npm run build        # full static export -> out/
+   ```
+
+Each row is normalized (currency strings like `$1,234.00`, `(123)`, mixed-case
+or padded headers, blank cells) and run through the **same** owner-parser and
+surplus/verification helpers as the seed data. Provide a confirmed
+`verified_surplus_amount` from an official list to reach Level 4 / *verified*;
+otherwise the calculator estimates and flags for review. Rows with no usable
+owner **and** no address are skipped and logged — they don't crash the build.
+Any new state/county in the data appears in the dashboard filters automatically.
+
+> Sample lists live in `data/sources/` (an AZ tax-deed CSV, an NC foreclosure
+> CSV, and a NV clerk-surplus XLSX) and are ingested on every build.
 
 To preview the production build exactly as GitHub Pages serves it (under the
 `/surplus-iq-national/` subpath), serve `out/` from a parent directory named

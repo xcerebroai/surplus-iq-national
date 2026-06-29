@@ -26,12 +26,13 @@ import {
   OwnerType,
 } from "../types/enums";
 import type { JsonLead, LeadsDataset } from "../types/json";
-import { calculateSurplus } from "../lib/surplus/calculate-surplus";
-import { parseOwnerName } from "../lib/surplus/owner-parser";
+import { processLead } from "../lib/leads/process-lead";
+import { ingestSourcesDir } from "../lib/imports/ingest-list";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const SEED_DIR = join(ROOT, "data", "sample");
+const SOURCES_DIR = join(ROOT, "data", "sources");
 const OUT_DIR = join(ROOT, "public", "data");
 const OUT_FILE = join(OUT_DIR, "leads.json");
 
@@ -159,72 +160,6 @@ function validateRecord(rec: unknown, file: string, index: number): JsonLead {
 }
 
 // ---------------------------------------------------------------------------
-// Processing — run each validated record through the REAL helpers.
-// ---------------------------------------------------------------------------
-
-// Statuses the surplus calculator cannot derive from sale/debt figures and must
-// not clobber. These come from source health / case lifecycle, which the
-// calculator has no inputs for.
-//   - source-health verification states:
-const PRESERVE_VERIFICATION = new Set<string>([
-  VerificationStatus.SourceError,
-  VerificationStatus.Stale,
-]);
-//   - case-lifecycle surplus states:
-const PRESERVE_SURPLUS_STATUS = new Set<string>([
-  SurplusStatus.ClaimFiled,
-  SurplusStatus.Disbursed,
-  SurplusStatus.Expired,
-]);
-
-/**
- * Apply the owner parser and surplus calculator to a validated record.
- * - Owner fields (business_name/first/last/owner_type) are recomputed from
- *   owner_raw_name, which is always preserved.
- * - Surplus/evidence/confidence come from the calculator. surplus_status and
- *   verification_status are taken from the calculator UNLESS the record already
- *   carries a lifecycle/health state the calculator can't model.
- */
-function processLead(lead: JsonLead): { lead: JsonLead; warning: string | null } {
-  const owner = parseOwnerName(lead.owner_raw_name);
-
-  const surplus = calculateSurplus({
-    sale_type: lead.sale_type,
-    sale_price: lead.sale_price,
-    opening_bid: lead.opening_bid,
-    judgment_amount: lead.judgment_amount,
-    amount_owed: lead.amount_owed,
-    state: lead.state,
-    county: lead.county,
-    source_type: lead.source_type,
-    verified_surplus_amount: lead.verified_surplus_amount,
-  });
-
-  const surplus_status = PRESERVE_SURPLUS_STATUS.has(lead.surplus_status)
-    ? lead.surplus_status
-    : surplus.surplus_status;
-  const verification_status = PRESERVE_VERIFICATION.has(lead.verification_status)
-    ? lead.verification_status
-    : surplus.verification_status;
-
-  const processed: JsonLead = {
-    ...lead,
-    business_name: owner.business_name,
-    first_name: owner.first_name,
-    last_name: owner.last_name,
-    owner_type: owner.owner_type,
-    // owner_raw_name preserved (spread above keeps it; never overwritten)
-    estimated_surplus_amount: surplus.estimated_surplus_amount,
-    confidence_score: surplus.confidence_score,
-    evidence_level: surplus.evidence_level as EvidenceLevel,
-    surplus_status,
-    verification_status,
-  };
-
-  return { lead: processed, warning: surplus.warning_message };
-}
-
-// ---------------------------------------------------------------------------
 // Build
 // ---------------------------------------------------------------------------
 
@@ -237,6 +172,7 @@ function build(): void {
     throw new Error(`No seed JSON files found in ${SEED_DIR}`);
   }
 
+  const now = new Date().toISOString();
   const seen = new Set<string>();
   const leads: JsonLead[] = [];
   let warningCount = 0;
@@ -271,6 +207,37 @@ function build(): void {
     });
   }
 
+  // ---- Public-list ingestion (data/sources/*.csv|xlsx + <name>.map.json) ----
+  const { leads: importedLeads, results } = ingestSourcesDir(SOURCES_DIR, { now });
+  let importedCount = 0;
+  let skippedCount = 0;
+
+  for (const result of results) {
+    if (result.error) {
+      console.warn(`[build-data] source "${result.file}" skipped: ${result.error}`);
+      continue;
+    }
+    skippedCount += result.skipped.length;
+    console.log(
+      `[build-data] source "${result.file}" (${result.source_name}): ` +
+        `${result.imported} imported, ${result.skipped.length} skipped`,
+    );
+    for (const row of result.skipped) {
+      console.warn(`[build-data]   - row ${row.row} skipped: ${row.reason}`);
+    }
+  }
+
+  for (const lead of importedLeads) {
+    if (seen.has(lead.id)) {
+      throw new Error(`imported duplicate lead id "${lead.id}" (check id_prefix uniqueness)`);
+    }
+    seen.add(lead.id);
+    // Imported leads are already processed; validate shape before collecting.
+    validateRecord(lead, "imported", importedCount);
+    leads.push(lead);
+    importedCount++;
+  }
+
   // Stable order: state, then county, then id — deterministic output.
   leads.sort(
     (a, b) =>
@@ -280,7 +247,7 @@ function build(): void {
   );
 
   const dataset: LeadsDataset = {
-    generatedAt: new Date().toISOString(),
+    generatedAt: now,
     count: leads.length,
     leads,
   };
@@ -289,11 +256,15 @@ function build(): void {
   writeFileSync(OUT_FILE, JSON.stringify(dataset, null, 2) + "\n", "utf8");
 
   const states = [...new Set(leads.map((l) => l.state).filter(Boolean))].sort();
+  const counties = new Set(leads.map((l) => l.county).filter(Boolean));
   console.log(
-    `[build-data] ${leads.length} leads from ${files.length} file(s) -> public/data/leads.json`,
+    `[build-data] ${leads.length} leads total ` +
+      `(${leads.length - importedCount} seed + ${importedCount} imported, ${skippedCount} rows skipped) ` +
+      `-> public/data/leads.json`,
   );
+  console.log(`[build-data] ${states.length} states, ${counties.size} counties present`);
   console.log(`[build-data] states present: ${states.join(", ") || "(none)"}`);
-  console.log(`[build-data] ${warningCount} record(s) carry a surplus warning_message`);
+  console.log(`[build-data] ${warningCount} seed record(s) carry a surplus warning_message`);
 }
 
 build();

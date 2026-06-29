@@ -1,0 +1,19 @@
+{
+  "source_name": "Clark County Clerk Surplus Register",
+  "source_state": "NV",
+  "source_county": "Clark",
+  "source_type": "court_registry_list",
+  "source_url": "https://example.gov/clark/clerk-surplus",
+  "lead_type": "clerk_registry_funds",
+  "sale_type": "mortgage_foreclosure",
+  "id_prefix": "nv-clark-clerk",
+  "columns": {
+    "case_number": "Case Number",
+    "owner_raw_name": "Party Name",
+    "property_address": "Property Address",
+    "property_city": "City",
+    "property_zip": "Zip",
+    "sale_date": "Sale Date",
+    "verified_surplus_amount": "Surplus Held"
+  }
+}

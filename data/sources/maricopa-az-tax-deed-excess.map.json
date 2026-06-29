@@ -1,0 +1,22 @@
+{
+  "source_name": "Maricopa County Tax Deed Excess Proceeds",
+  "source_state": "AZ",
+  "source_county": "Maricopa",
+  "source_type": "county_surplus_list",
+  "source_url": "https://example.gov/maricopa/tax-deed-excess",
+  "lead_type": "tax_deed_surplus",
+  "sale_type": "tax_deed",
+  "id_prefix": "az-maricopa-td",
+  "columns": {
+    "parcel_number": "Parcel",
+    "owner_raw_name": "Owner Name",
+    "property_address": "Property Address",
+    "property_city": "City",
+    "property_zip": "Zip",
+    "case_number": "Cause Number",
+    "sale_date": "Sale Date",
+    "sale_price": "Sale Amount",
+    "amount_owed": "Taxes Due",
+    "verified_surplus_amount": "Excess Funds"
+  }
+}
