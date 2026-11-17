@@ -1,19 +1,9 @@
 /**
- * Surplus IQ — data build script.
- *
- * Reads every seed file in data/sample/ (no hardcoded state list — anything
- * that appears is included), validates each record against the canonical Lead
- * shape (types/models.ts, serialized as JsonLead), runs it through the surplus
- * + verification helpers (currently pass-through stubs), and writes the single
- * artifact the static dashboard loads at runtime: public/data/leads.json.
- *
- * Run: `npm run build:data` (also runs automatically before `next build`).
- *
- * Imports are relative (not the "@/*" alias) so this runs cleanly under tsx /
- * plain Node without tsconfig path resolution.
+ * Publish validated records from data/sources to the customer dashboard.
+ * Synthetic fixtures in data/sample and data/fixtures remain internal.
  */
 
-import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,12 +16,10 @@ import {
   OwnerType,
 } from "../types/enums";
 import type { JsonLead, LeadsDataset } from "../types/json";
-import { processLead } from "../lib/leads/process-lead";
 import { ingestSourcesDir } from "../lib/imports/ingest-list";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const SEED_DIR = join(ROOT, "data", "sample");
 const SOURCES_DIR = join(ROOT, "data", "sources");
 const OUT_DIR = join(ROOT, "public", "data");
 const OUT_FILE = join(OUT_DIR, "leads.json");
@@ -164,48 +152,9 @@ function validateRecord(rec: unknown, file: string, index: number): JsonLead {
 // ---------------------------------------------------------------------------
 
 function build(): void {
-  const files = readdirSync(SEED_DIR)
-    .filter((f) => f.endsWith(".json"))
-    .sort();
-
-  if (files.length === 0) {
-    throw new Error(`No seed JSON files found in ${SEED_DIR}`);
-  }
-
   const now = new Date().toISOString();
   const seen = new Set<string>();
   const leads: JsonLead[] = [];
-  let warningCount = 0;
-
-  for (const file of files) {
-    const raw = readFileSync(join(SEED_DIR, file), "utf8");
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      throw new Error(`${file}: invalid JSON — ${(err as Error).message}`);
-    }
-    if (!Array.isArray(parsed)) {
-      throw new Error(`${file}: top-level value must be an array of leads`);
-    }
-
-    parsed.forEach((rec, i) => {
-      const validated = validateRecord(rec, file, i);
-      if (seen.has(validated.id)) {
-        throw new Error(`${file}[${i}]: duplicate lead id "${validated.id}"`);
-      }
-      seen.add(validated.id);
-
-      // Run through the REAL helpers (owner parser + surplus calculator).
-      const { lead, warning } = processLead(validated);
-      if (warning) warningCount++;
-
-      // The processed record must still conform exactly to the Lead shape.
-      validateRecord(lead, `${file} (processed)`, i);
-
-      leads.push(lead);
-    });
-  }
 
   // ---- Public-list ingestion (data/sources/*.csv|xlsx + <name>.map.json) ----
   const { leads: importedLeads, results } = ingestSourcesDir(SOURCES_DIR, { now });
@@ -259,12 +208,11 @@ function build(): void {
   const counties = new Set(leads.map((l) => l.county).filter(Boolean));
   console.log(
     `[build-data] ${leads.length} leads total ` +
-      `(${leads.length - importedCount} seed + ${importedCount} imported, ${skippedCount} rows skipped) ` +
+      `(${importedCount} imported, ${skippedCount} rows skipped) ` +
       `-> public/data/leads.json`,
   );
   console.log(`[build-data] ${states.length} states, ${counties.size} counties present`);
   console.log(`[build-data] states present: ${states.join(", ") || "(none)"}`);
-  console.log(`[build-data] ${warningCount} seed record(s) carry a surplus warning_message`);
 }
 
 build();

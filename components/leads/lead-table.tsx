@@ -184,7 +184,7 @@ export function LeadTable({
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-slate-800">Lead Results</h2>
           <p className="truncate text-xs text-slate-500">
-            Filtered public surplus opportunities from the static lead dataset.
+            Filter and review public surplus opportunities.
           </p>
         </div>
         <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">

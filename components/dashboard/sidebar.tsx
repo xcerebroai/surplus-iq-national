@@ -60,8 +60,8 @@ export function Sidebar({
         <div className="hidden items-center gap-2 sm:flex">
           <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
           <div className="min-w-0">
-            <p className="truncate text-[11px] font-medium text-slate-300">Static MVP</p>
-            <p className="truncate text-[10px] text-slate-500">Read-only · no backend</p>
+            <p className="truncate text-[11px] font-medium text-slate-300">Public records</p>
+            <p className="truncate text-[10px] text-slate-500">Surplus funds research</p>
           </div>
         </div>
         <span className="mx-auto block h-2 w-2 rounded-full bg-emerald-400 sm:hidden" />

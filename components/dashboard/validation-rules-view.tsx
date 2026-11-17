@@ -49,9 +49,8 @@ export function ValidationRulesView() {
       <RuleCard icon={Layers} title="Level 5 requires provenance enrichment">
         <p>
           Level 5 additionally requires owner/entity identity from the <em>same</em> official source
-          that confirms the funds. The calculator cannot prove that from sale math alone, so it caps
-          at Level 4. A future enrichment step cross-checks owner source, funds source, and the
-          Source Registry before any L4 → L5 upgrade.
+          that confirms the funds. Sale calculations alone do not establish owner identity.
+          Owner and funds provenance must both be confirmed before a record reaches Level 5.
         </p>
       </RuleCard>
 

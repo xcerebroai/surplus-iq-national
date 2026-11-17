@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Surplus IQ — Surplus Funds Lead Dashboard",
   description:
-    "Static dashboard for public surplus funds leads from mortgage and tax foreclosure sales.",
+    "Dashboard for public surplus funds leads from mortgage and tax foreclosure sales.",
 };
 
 export default function RootLayout({

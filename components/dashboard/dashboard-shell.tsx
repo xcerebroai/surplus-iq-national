@@ -3,8 +3,7 @@
 /**
  * Top-level dashboard shell: dark navy sidebar + light content area with a real
  * app header. Fetches the static leads.json once (base-path aware) and switches
- * sections client-side. Only "Leads" is fully functional; other sections are
- * intentional content/placeholder views. Read-only — no backend.
+ * sections client-side. Customer navigation includes only available tools.
  */
 
 import { useEffect, useState } from "react";
@@ -13,11 +12,7 @@ import type { JsonLead, LeadsDataset } from "@/types/json";
 import { assetPath } from "@/lib/utils/asset-path";
 import { NAV_ITEMS, DEFAULT_SECTION, type SectionId } from "@/components/dashboard/nav";
 import { Sidebar } from "@/components/dashboard/sidebar";
-import { KnownGapsView } from "@/components/dashboard/known-gaps-view";
 import { ValidationRulesView } from "@/components/dashboard/validation-rules-view";
-import { ImportCenterView } from "@/components/dashboard/import-center-view";
-import { SettingsView } from "@/components/dashboard/settings-view";
-import { SourceRegistryView } from "@/components/sources/source-registry-view";
 import { LeadsView } from "@/components/leads/leads-view";
 
 export function DashboardShell() {
@@ -63,16 +58,8 @@ export function DashboardShell() {
           );
         }
         return <LeadsView leads={leads} />;
-      case "sources":
-        return <SourceRegistryView />;
-      case "imports":
-        return <ImportCenterView />;
       case "validation":
         return <ValidationRulesView />;
-      case "known-gaps":
-        return <KnownGapsView />;
-      case "settings":
-        return <SettingsView />;
     }
   }
 
@@ -89,7 +76,7 @@ export function DashboardShell() {
           </div>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Static · Read-only MVP
+            Surplus IQ
           </span>
         </header>
 

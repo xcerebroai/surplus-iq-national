@@ -197,7 +197,7 @@ export function LeadDetailDrawer({
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-center text-xs text-slate-400">
-          View-only · read-only static dashboard
+          Surplus IQ · Property details
         </div>
       </div>
     </div>
